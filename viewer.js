@@ -1,21 +1,20 @@
-import * as THREE from 'three';
-import { DragControls } from 'three/addons/controls/DragControls.js';
+const { Application, Assets, SimpleMesh, SVGScene } = PIXI;
 
-const scene = new THREE.Scene();
+const app = new Application({resizeTo: window});
+window.app = app;
+document.body.appendChild(app.view);
 
-const width = window.innerWidth;
-const height = window.innerHeight;
-const ratio = width / height;
-// const camera = new THREE.OrthographicCamera(ratio / -2, ratio / 2, 2 / ratio, -2 / ratio, -500, 1000);
-const camera = new THREE.PerspectiveCamera(75, ratio, 0.1, 1000);
-camera.position.z = 1;
-camera.position.y = 0;
-camera.position.x = 0;
-scene.add(camera);
 
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize(width, height);
-document.body.appendChild(renderer.domElement);
+const map_overlay = await PIXI.SVGScene.from("/subway_map_overlay.svg").catch((err) => { console.log(err); });
+console.log("map_overlay:");
+console.log(map_overlay);
+map_overlay.position.set(
+  document.documentElement.clientWidth / 2,
+  window.innerHeight / 2
+);
+map_overlay.scale.set(0.25);
+window.map_overlay = map_overlay;
+//map_viewport.addChild(map_overlay);
 
 const tile_pgw = await fetch("initial_tile.pgw").then((resp) => resp.text());
 // assume square pixels, 4096x4096 size for now
@@ -24,8 +23,8 @@ const [pixelsize, , , , xcoord, ycoord] = tile_pgw.split("\r\n").map(Number);
 console.log(`${pixelsize} ${xcoord} ${ycoord}`);
 
 const station_data = await fetch("data.json").then((resp) => resp.json());
-const source_vertices = new Float32Array(3 * station_data.vertices.length);
-const target_vertices = new Float32Array(3 * station_data.vertices.length);
+const source_vertices = new Float32Array(2 * station_data.vertices.length);
+const target_vertices = new Float32Array(2 * station_data.vertices.length);
 const uvs = new Float32Array(2 * station_data.vertices.length);
 for (let i = 0; i < station_data.vertices.length; i++) {
     const [sx, sy, tx, ty] = station_data.vertices[i];
@@ -35,13 +34,11 @@ for (let i = 0; i < station_data.vertices.length; i++) {
 	console.log(`wat? (${sx_norm}, ${sy_norm})`);
     }
     uvs[i*2 + 0] = sx_norm;
-    uvs[i*2 + 1] = 1 - sy_norm;
-    source_vertices[i*3 + 0] = sx_norm * 2 - 1;
-    source_vertices[i*3 + 1] = -(sy_norm * 2 - 1);
-    source_vertices[i*3 + 2] = 0.0;
-    target_vertices[i*3 + 0] = tx * 2 - 1;
-    target_vertices[i*3 + 1] = -(ty * 2 - 1);
-    target_vertices[i*3 + 2] = 0.0;
+    uvs[i*2 + 1] = sy_norm;
+    source_vertices[i*2 + 0] = sx_norm * 2 - 1;
+    source_vertices[i*2 + 1] = (sy_norm * 2 - 1);
+    target_vertices[i*2 + 0] = tx * 2 - 1;
+    target_vertices[i*2 + 1] = -(ty * 2 - 1);
 }
 console.log(source_vertices);
 console.log(target_vertices);
@@ -58,26 +55,35 @@ console.log(uvs);
 // geometry.setIndex([2, 1, 0, 2, 3, 0]);
 // geometry.setAttribute('position', new THREE.BufferAttribute(plane, 3));
 // console.log(geometry.getAttribute('position'));
-const geometry = new THREE.BufferGeometry();
-geometry.setIndex(station_data.triangles.flat());
-console.log(station_data.triangles.flat());
-const geom_vertices = new THREE.BufferAttribute(new Float32Array(source_vertices), 3);
-geometry.setAttribute('position', geom_vertices);
-geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+// const geometry = new THREE.BufferGeometry();
+// geometry.setIndex(station_data.triangles.flat());
+// console.log(station_data.triangles.flat());
+const geom_vertices = new Float32Array(source_vertices);
+// geometry.setAttribute('position', geom_vertices);
+// geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
 
-const tile_texture = new THREE.TextureLoader().load("initial_tile.png");
-tile_texture.colorSpace = THREE.SRGBColorSpace;
-const material = new THREE.MeshBasicMaterial({map: tile_texture, side: THREE.DoubleSide});
+const tile_texture = await Assets.load("initial_tile.png");
+// const material = new THREE.MeshBasicMaterial({map: tile_texture, side: THREE.DoubleSide});
 // const material = new THREE.MeshBasicMaterial({color: 0xff0000, side: THREE.DoubleSide});
-const mesh = new THREE.Mesh(geometry, material);
+const indices = new Uint16Array(station_data.triangles.flat());
+const mesh = new SimpleMesh(tile_texture, geom_vertices, uvs, indices);
+mesh.position.set(
+  document.documentElement.clientWidth / 2,
+  window.innerHeight / 2
+);
+mesh.scale.set(200);
 // mesh.scale.x = 200;
 // mesh.scale.y = 200;
 // mesh.scale.z = 200;
 window.mesh = mesh;
 //camera.lookAt(mesh.position);
-scene.add(mesh);
+app.stage.addChild(mesh);
 
-const controls = new DragControls([mesh], camera, renderer.domElement);
+const map_viewport = app.stage.addChild(new PIXI.Container());
+window.map_viewport = map_viewport;
+// map_viewport.addChild(map_overlay);
+
+// const controls = new DragControls([mesh], camera, renderer.domElement);
 
 window.dt = 0;
 
@@ -95,19 +101,8 @@ function clip(x) {
 
 let t = 0;
 
-window.dz = 0;
-
-function animate() {
-    requestAnimationFrame(animate);
-
+app.ticker.add(() => {
     t = clip(t + dt);
-    interpolate(source_vertices, target_vertices, geom_vertices.array, t);
-    geom_vertices.needsUpdate = true;
-
-    mesh.rotation.z += window.dz;
-
-    renderer.render(scene, camera);
-}
-
-animate();
+    interpolate(source_vertices, target_vertices, geom_vertices, t);
+});
 

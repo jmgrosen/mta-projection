@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@pixi-essentials/svg": "^2.0.1"
+  },
+  "devDependencies": {
+    "rollup": "^3.29.1"
+  }
+}
