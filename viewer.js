@@ -1,19 +1,20 @@
 const { Application, Assets, SimpleMesh, SVGScene } = PIXI;
 
-const app = new Application({resizeTo: window});
+const app = new Application({resizeTo: window, backgroundColor: 0xffffff, antialias: true, autoDensity: true, resolution: window.devicePixelRatio});
 window.app = app;
 document.body.appendChild(app.view);
 
-
-const map_overlay = await PIXI.SVGScene.from("/subway_map_overlay.svg").catch((err) => { console.log(err); });
-console.log("map_overlay:");
-console.log(map_overlay);
-map_overlay.position.set(
-  document.documentElement.clientWidth / 2,
-  window.innerHeight / 2
-);
-map_overlay.scale.set(0.25);
-window.map_overlay = map_overlay;
+const overlay_texture = await PIXI.Texture.fromURL("subway_map_overlay.svg");
+// const map_sprite = new PIXI.Sprite(map_overlay);
+// const map_overlay = await PIXI.SVGScene.from("/subway_map_overlay_light.svg").catch((err) => { console.log(err); });
+// console.log("map_overlay:");
+// console.log(map_overlay);
+// map_overlay.position.set(
+//   document.documentElement.clientWidth / 2,
+//   window.innerHeight / 2
+// );
+// map_overlay.scale.set(0.25);
+// window.map_overlay = map_overlay;
 //map_viewport.addChild(map_overlay);
 
 const tile_pgw = await fetch("initial_tile.pgw").then((resp) => resp.text());
@@ -44,46 +45,36 @@ console.log(source_vertices);
 console.log(target_vertices);
 console.log(uvs);
 
-// const geometry = new THREE.PlaneGeometry(300, 300);
-// const geometry = new THREE.BufferGeometry();
-// const plane = new Float32Array([
-//     -150, 150, 0,
-//     150, 150, 0,
-//     150, -150, 0,
-//     -150, -150, 0
-// ]);
-// geometry.setIndex([2, 1, 0, 2, 3, 0]);
-// geometry.setAttribute('position', new THREE.BufferAttribute(plane, 3));
-// console.log(geometry.getAttribute('position'));
-// const geometry = new THREE.BufferGeometry();
-// geometry.setIndex(station_data.triangles.flat());
-// console.log(station_data.triangles.flat());
 const geom_vertices = new Float32Array(source_vertices);
-// geometry.setAttribute('position', geom_vertices);
-// geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
 
 const tile_texture = await Assets.load("initial_tile.png");
-// const material = new THREE.MeshBasicMaterial({map: tile_texture, side: THREE.DoubleSide});
-// const material = new THREE.MeshBasicMaterial({color: 0xff0000, side: THREE.DoubleSide});
 const indices = new Uint16Array(station_data.triangles.flat());
 const mesh = new SimpleMesh(tile_texture, geom_vertices, uvs, indices);
 mesh.position.set(
   document.documentElement.clientWidth / 2,
   window.innerHeight / 2
 );
-mesh.scale.set(200);
-// mesh.scale.x = 200;
-// mesh.scale.y = 200;
-// mesh.scale.z = 200;
+console.log(document.documentElement.clientWidth + ", " + window.innerHeight);
+const overlay_ratio = overlay_texture.height / overlay_texture.width;
+const scale = Math.min(document.documentElement.clientWidth, window.innerHeight / overlay_ratio) / 2;
+mesh.scale.set(scale);
 window.mesh = mesh;
-//camera.lookAt(mesh.position);
 app.stage.addChild(mesh);
 
-const map_viewport = app.stage.addChild(new PIXI.Container());
-window.map_viewport = map_viewport;
-// map_viewport.addChild(map_overlay);
+console.log(overlay_texture.width + ", " + overlay_texture.height);
+// const overlay_vertices = new Float32Array([-1 / overlay_ratio, -1, -1 / overlay_ratio, 1, 1 / overlay_ratio, 1, 1 / overlay_ratio, -1]);
+const overlay_vertices = new Float32Array([-1, -1 * overlay_ratio, -1, 1 * overlay_ratio, 1, 1 * overlay_ratio, 1, -1 * overlay_ratio]);
+const overlay_indices = new Uint16Array([0, 1, 2, 2, 3, 0]);
+const overlay_uvs = new Float32Array([0, 0, 0, 1, 1, 1, 1, 0]);
+const overlay_mesh = new SimpleMesh(overlay_texture, overlay_vertices, overlay_uvs, overlay_indices);
+overlay_mesh.position.set(document.documentElement.clientWidth / 2, window.innerHeight / 2);
+overlay_mesh.scale.set(scale);
+overlay_mesh.alpha = 0;
+app.stage.addChild(overlay_mesh);
 
-// const controls = new DragControls([mesh], camera, renderer.domElement);
+// const map_viewport = app.stage.addChild(new PIXI.Container());
+// window.map_viewport = map_viewport;
+// map_viewport.addChild(map_overlay);
 
 window.dt = 0;
 
@@ -104,5 +95,8 @@ let t = 0;
 app.ticker.add(() => {
     t = clip(t + dt);
     interpolate(source_vertices, target_vertices, geom_vertices, t);
+    overlay_mesh.alpha = t;
 });
 
+
+app.renderer.render(app.stage);
