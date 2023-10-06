@@ -1,4 +1,4 @@
-const { Application, Assets, SimpleMesh, SVGScene } = PIXI;
+const { Application, Assets, SimpleMesh } = PIXI;
 
 const app = new Application({resizeTo: window, backgroundColor: 0xffffff, antialias: true, autoDensity: true, resolution: window.devicePixelRatio});
 window.app = app;
