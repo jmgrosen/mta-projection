@@ -76,8 +76,6 @@ app.stage.addChild(overlay_mesh);
 // window.map_viewport = map_viewport;
 // map_viewport.addChild(map_overlay);
 
-window.dt = 0;
-
 function interpolate(from, to, out, t) {
     for (let i = 0; i < out.length; i++) {
 	out[i] = from[i] * (1 - t) + to[i] * t;
@@ -91,11 +89,18 @@ function clip(x) {
 }
 
 let t = 0;
+let transformDir = -1;
 
-app.ticker.add(() => {
-    t = clip(t + dt);
+window.toggleTransform = () => {
+    transformDir = transformDir > 0 ? -1 : 1;
+};
+
+const transformTime = 3000; // milliseconds
+
+app.ticker.add((dt) => {
+    t = clip(t + dt * transformDir / transformTime * 60);
     interpolate(source_vertices, target_vertices, geom_vertices, t);
-    overlay_mesh.alpha = t;
+    overlay_mesh.alpha = Math.pow(2, 10 * t - 10);
 });
 
 
